@@ -35,7 +35,7 @@ func main() {
 	avgDegree := analyzer.AvgDegree(grafo)
 	fmt.Printf("Il grado medio del grafo è: %.2v\n", avgDegree)
 
-	Simulazione(1000, 1000, grafo, 50, "LN")
+	Simulazione(10000, 1000, grafo, 50, "LN")
 	Simulazione(10000, 1000, erdosRenyiGraph, 50, "ER")
 
 	fmt.Printf("Termino.\n")
@@ -48,8 +48,13 @@ func Simulazione(numPagamenti int, pagamento float64, lng *analyzer.LNGraph, nod
 	lng.ComponentiConnesse()
 
 	centralityMap := simulation.CalcolaBetweennessCentrality(lng)
+	/*centralityMap := make(map[int64]float64)
+	for nodi := lng.Graph.Nodes(); nodi.Next(); {
+		node := nodi.Node()
+		centralityMap[node.ID()] = 1
+	}*/
 	hubOrdinati := simulation.OrdinaPerCentralita(centralityMap)
-	numNodi := len(hubOrdinati)
+	numNodi := len(hubOrdinati) //lng.Graph.Nodes().Len()
 
 	fmt.Printf("\n--- Simulazione n.1: grafo %s intatto ---\n", targetGraph)
 	simulation.RandomProcess(numPagamenti, pagamento, lng)
@@ -60,8 +65,12 @@ func Simulazione(numPagamenti int, pagamento float64, lng *analyzer.LNGraph, nod
 	fmt.Printf("\n--- Simulazione n.2: %d guasti casuali su %s ---\n", nodiRimossiPerSimulazione, targetGraph)
 	for i := 0; i < nodiRimossiPerSimulazione; i++ {
 		randIndex := rand.Intn(numNodi)
+		for hubOrdinati[randIndex] == -1 {
+			randIndex = rand.Intn(numNodi)
+		}
 		nodeID := hubOrdinati[randIndex]
 		lngCopy.Graph.RemoveNode(nodeID)
+		hubOrdinati[randIndex] = -1
 	}
 	simulation.RandomProcess(numPagamenti, pagamento, lngCopy)
 	lngCopy.ComponentiConnesse()
