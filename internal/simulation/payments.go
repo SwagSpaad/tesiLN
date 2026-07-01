@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"lightning-network/internal/analyzer"
 	"math/rand"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"gonum.org/v1/gonum/graph/topo"
@@ -12,7 +14,7 @@ import (
 // la funzione Paga prende in input un nodo u, il nodo v di arrivo e la quantità di satoshi da inviare
 // restituisce True se il pagamento va andato a buon fine, False altrimenti, il numero di hop effettuati per arrivare a destinazione
 // true se esiste un percorso tra u e v (mancanza liquidità), false se non esiste un percorso tra u e v (path non esistente)
-func Paga(nodoMittente, nodoDestinatario int64, pagamento float64, lng *analyzer.LNGraph) (bool, int, bool) {
+func Paga(nodoMittente, nodoDestinatario int64, pagamento float64, lng *analyzer.LNGraph) (bool, int64, bool) {
 	// se il mittente e il destinatario sono uguali il pagamento fallisce
 	if nodoMittente == nodoDestinatario {
 		return false, 0, false
@@ -63,7 +65,7 @@ func Paga(nodoMittente, nodoDestinatario int64, pagamento float64, lng *analyzer
 	}
 
 	nodo := nodoDestinatario
-	hop := 0
+	hop := int64(0)
 
 	for nodo != nodoMittente {
 		//ricostruiamo il percorso da Destinatario a Mittente
@@ -97,41 +99,49 @@ func RandomProcess(numPagamenti int, pagamento float64, lng *analyzer.LNGraph) {
 	}
 	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	pagamentiRiusciti := 0
-	pagamentiFalliti := 0
-	fallimentoLiquidita := 0
-	fallimentoPath := 0
-	totaleHops := 0
-
+	type Richiesta struct{ start, dest int64 }
+	richieste := make([]Richiesta, numPagamenti)
 	for i := 0; i < numPagamenti; i++ {
 		startNodeIndex := rand.Intn(numNodi)
 		destNodeIndex := rand.Intn(numNodi)
-		//fintanto che il nodo destinazione corrisponde a quello di partenza
 		for startNodeIndex == destNodeIndex {
 			destNodeIndex = rand.Intn(numNodi)
 		}
+		richieste[i] = Richiesta{start: IDArray[startNodeIndex], dest: IDArray[destNodeIndex]}
+	}
 
-		startNodeID := IDArray[startNodeIndex]
-		destNodeID := IDArray[destNodeIndex]
+	var pagamentiRiusciti uint64 = 0
+	var pagamentiFalliti uint64 = 0
+	var fallimentoLiquidita uint64 = 0
+	var fallimentoPath uint64 = 0
+	var totaleHops int64 = 0
 
-		esito, hops, pathExists := Paga(startNodeID, destNodeID, pagamento, lng)
-		//se il pagamento va a buon fine
-		if esito {
-			pagamentiRiusciti++
-			totaleHops += hops
-		} else {
-			pagamentiFalliti++
-			if pathExists {
-				fallimentoLiquidita++
+	var wg sync.WaitGroup
+	fmt.Printf("Avvio simulazione parallela...\n")
+	for i := 0; i < numPagamenti; i++ {
+		wg.Add(1)
+
+		go func(req Richiesta) {
+			defer wg.Done()
+
+			esito, hops, pathExists := Paga(req.start, req.dest, pagamento, lng)
+			if esito {
+				atomic.AddUint64(&pagamentiRiusciti, 1)
+				atomic.AddInt64(&totaleHops, hops)
 			} else {
-				fallimentoPath++
+				atomic.AddUint64(&pagamentiFalliti, 1)
+				if pathExists {
+					atomic.AddUint64(&fallimentoLiquidita, 1)
+				} else {
+					atomic.AddUint64(&fallimentoPath, 1)
+				}
 			}
-
-		}
-		if (i+1)%1000 == 0 {
+		}(richieste[i])
+		if (i+1)%(numPagamenti/10) == 0 {
 			fmt.Printf("Progresso: %d di %d pagamenti simulati...\n", i+1, numPagamenti)
 		}
 	}
+	wg.Wait()
 
 	fmt.Println("\n--- RISULTATI DELLA SIMULAZIONE ---")
 	fmt.Printf("Pagamenti tentati: %d\n", numPagamenti)

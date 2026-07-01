@@ -20,8 +20,8 @@ func main() {
 		log.Fatalf("Errore durante la lettura del file: %v", err)
 	}
 	grafo := analyzer.BuildGraph(nodi, archi)
-	erdosRenyiGraph := analyzer.ErdosRenyiGraph(grafo.Graph.Nodes().Len(), 0.0003, grafo)
-	erdosRenyiGraph.ComponentiConnesse()
+	grafoErdosRenyi := analyzer.ErdosRenyiGraph(grafo.Graph.Nodes().Len(), 0.0003, grafo)
+	grafoErdosRenyi.ComponentiConnesse()
 	/*
 		err = analyzer.ExportGraphDot(grafo, "graph_view.dot", 50418)
 		if err != nil {
@@ -35,19 +35,19 @@ func main() {
 	avgDegree := analyzer.AvgDegree(grafo)
 	fmt.Printf("Il grado medio del grafo è: %.2v\n", avgDegree)
 
-	Simulazione(10000, 1000, grafo, 50, "LN")
-	Simulazione(10000, 1000, erdosRenyiGraph, 50, "ER")
+	Simulazione(100000, 1000, grafo, 50, "LN")
+	Simulazione(100000, 1000, grafoErdosRenyi, 50, "ER")
 
 	fmt.Printf("Termino.\n")
 	tempoTotale := time.Since(start)
 	fmt.Printf("Tempo trascorso: %v\n", tempoTotale)
 }
 
-func Simulazione(numPagamenti int, pagamento float64, lng *analyzer.LNGraph, nodiRimossiPerSimulazione int, targetGraph string) {
+func Simulazione(numPagamenti int, pagamento float64, grafo *analyzer.LNGraph, nodiRimossiPerSimulazione int, targetGraph string) {
 	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
-	lng.ComponentiConnesse()
+	_, giantComp := grafo.ComponentiConnesse()
 
-	centralityMap := simulation.CalcolaBetweennessCentrality(lng)
+	centralityMap := simulation.CalcolaDegreeCentrality(giantComp)
 	/*centralityMap := make(map[int64]float64)
 	for nodi := lng.Graph.Nodes(); nodi.Next(); {
 		node := nodi.Node()
@@ -57,11 +57,11 @@ func Simulazione(numPagamenti int, pagamento float64, lng *analyzer.LNGraph, nod
 	numNodi := len(hubOrdinati) //lng.Graph.Nodes().Len()
 
 	fmt.Printf("\n--- Simulazione n.1: grafo %s intatto ---\n", targetGraph)
-	simulation.RandomProcess(numPagamenti, pagamento, lng)
-	fmt.Printf("\n--- Numero nodi: %d ---\n", lng.Graph.Nodes().Len())
-	analyzer.RipristinaBilanci(lng)
+	simulation.RandomProcess(numPagamenti, pagamento, giantComp)
+	fmt.Printf("\n--- Numero nodi: %d ---\n", giantComp.Graph.Nodes().Len())
+	analyzer.RipristinaBilanci(giantComp)
 
-	lngCopy := analyzer.CopiaGrafo(lng)
+	lngCopy := analyzer.CopiaGrafo(giantComp)
 	fmt.Printf("\n--- Simulazione n.2: %d guasti casuali su %s ---\n", nodiRimossiPerSimulazione, targetGraph)
 	for i := 0; i < nodiRimossiPerSimulazione; i++ {
 		randIndex := rand.Intn(numNodi)
@@ -76,8 +76,8 @@ func Simulazione(numPagamenti int, pagamento float64, lng *analyzer.LNGraph, nod
 	lngCopy.ComponentiConnesse()
 	fmt.Printf("\n--- Numero nodi: %d ---\n", lngCopy.Graph.Nodes().Len())
 
-	analyzer.RipristinaBilanci(lng)
-	lngCopy = analyzer.CopiaGrafo(lng)
+	analyzer.RipristinaBilanci(giantComp)
+	lngCopy = analyzer.CopiaGrafo(giantComp)
 	fmt.Printf("\n--- Simulazione n.3: %d attacchi mirati su %s ---\n", nodiRimossiPerSimulazione, targetGraph)
 	for _, nodeID := range hubOrdinati[0:nodiRimossiPerSimulazione] {
 		lngCopy.Graph.RemoveNode(nodeID)

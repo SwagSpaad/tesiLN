@@ -50,6 +50,16 @@ func (lng *LNGraph) ComponentiConnesse() (error, *LNGraph) {
 	return err, giantCompGraph
 }
 
+func (lng *LNGraph) TotCapacita() int {
+	totCapacita := 0
+	archi := lng.Graph.Edges()
+	for archi.Next() {
+		arco := archi.Edge().(LightningEdge)
+		totCapacita += int(arco.Capacity)
+	}
+	return totCapacita
+}
+
 func (lng *LNGraph) GeneraSottografo(nodiComp []graph.Node) *LNGraph {
 	sottoGrafo := simple.NewUndirectedGraph()
 	pubKeyToId := make(map[string]int64)

@@ -12,6 +12,16 @@ type NodoCentralita struct {
 	Centralita float64
 }
 
+func CalcolaDegreeCentrality(lng *analyzer.LNGraph) map[int64]float64 {
+	centralityMap := make(map[int64]float64)
+	nodi := lng.Graph.Nodes()
+	for nodi.Next() {
+		node := nodi.Node()
+		centralityMap[node.ID()] = float64(lng.Graph.From(node.ID()).Len())
+	}
+	return centralityMap
+}
+
 func CalcolaBetweennessCentrality(lng *analyzer.LNGraph) map[int64]float64 {
 	centralityMap := network.Betweenness(lng.Graph)
 	return centralityMap
