@@ -3,9 +3,12 @@ package analyzer
 import (
 	"fmt"
 	"lightning-network/internal/parser"
+	"math/rand"
 	"os"
+	"time"
 
 	"gonum.org/v1/gonum/graph"
+	"gonum.org/v1/gonum/graph/graphs/gen"
 	"gonum.org/v1/gonum/graph/simple"
 )
 
@@ -103,6 +106,88 @@ func BuildGraph(nodi []parser.NodeData, archi []parser.EdgeData) *LNGraph {
 
 	return &LNGraph{
 		Graph:      graph,
+		PubKeyToID: pubKeyToId,
+		IDToPubKey: idToPubKey,
+	}
+}
+
+func ErdosRenyiGraph(n int, p float64, sampleGraph *LNGraph) *LNGraph {
+	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+	archi := sampleGraph.Graph.Edges()
+	EdgeArray := []LightningEdge{}
+
+	for archi.Next() {
+		EdgeArray = append(EdgeArray, archi.Edge().(LightningEdge))
+	}
+	numArchi := len(EdgeArray)
+
+	graph := simple.NewUndirectedGraph()
+	gen.Gnp(graph, n, p, nil)
+	graphEdges := graph.Edges()
+	for graphEdges.Next() {
+		edge := graphEdges.Edge()
+
+		randEdgeIndex := rand.Intn(numArchi)
+		randEdge := EdgeArray[randEdgeIndex]
+
+		lightningEdge := LightningEdge{
+			F:        edge.From(),
+			T:        edge.To(),
+			Capacity: randEdge.Capacity,
+			Balance: &BalanceState{
+				BalanceA: randEdge.Capacity / 2.0,
+				BalanceB: randEdge.Capacity / 2.0,
+			},
+		}
+		graph.RemoveEdge(edge.From().ID(), edge.To().ID())
+		graph.SetEdge(lightningEdge)
+	}
+
+	fmt.Printf("Grafo Erdos Renyi generato: %d nodi, %d archi validi elaborati\n", graph.Nodes().Len(), graph.Edges().Len())
+
+	return &LNGraph{
+		Graph:      graph,
+		PubKeyToID: nil,
+		IDToPubKey: nil,
+	}
+}
+
+func RipristinaBilanci(lng *LNGraph) {
+	archi := lng.Graph.Edges()
+	for archi.Next() {
+		e := archi.Edge().(LightningEdge)
+		e.Balance.BalanceA = e.Capacity / 2.0
+		e.Balance.BalanceB = e.Capacity / 2.0
+	}
+}
+
+func CopiaGrafo(grafoOriginale *LNGraph) *LNGraph {
+	grafoCopia := simple.NewUndirectedGraph()
+	nodi := grafoOriginale.Graph.Nodes()
+	for nodi.Next() {
+		nodo := nodi.Node()
+		grafoCopia.AddNode(nodo)
+	}
+
+	archi := grafoOriginale.Graph.Edges()
+	for archi.Next() {
+		arco := archi.Edge().(LightningEdge)
+		grafoCopia.SetEdge(arco)
+	}
+
+	pubKeyToId := make(map[string]int64)
+	idToPubKey := make(map[int64]string)
+
+	for pubKey, id := range grafoOriginale.PubKeyToID {
+		pubKeyToId[pubKey] = id
+	}
+
+	for id, pubKey := range grafoOriginale.IDToPubKey {
+		idToPubKey[id] = pubKey
+	}
+
+	return &LNGraph{
+		Graph:      grafoCopia,
 		PubKeyToID: pubKeyToId,
 		IDToPubKey: idToPubKey,
 	}
