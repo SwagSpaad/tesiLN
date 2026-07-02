@@ -5,7 +5,6 @@ import (
 	"lightning-network/internal/parser"
 	"math/rand"
 	"os"
-	"sync"
 	"time"
 
 	"gonum.org/v1/gonum/graph"
@@ -14,7 +13,6 @@ import (
 )
 
 type BalanceState struct {
-	Mutex    sync.RWMutex
 	BalanceA float64 // bilancio A->B
 	BalanceB float64 // bilancio B->A
 }
@@ -41,9 +39,6 @@ func (e LightningEdge) ReversedEdge() graph.Edge {
 }
 
 func (e LightningEdge) SatoshiDisponibili(nodeID int64) float64 {
-	e.Balance.Mutex.RLock()
-	defer e.Balance.Mutex.RUnlock()
-
 	if nodeID == e.F.ID() {
 		return e.Balance.BalanceA
 	}
@@ -52,9 +47,6 @@ func (e LightningEdge) SatoshiDisponibili(nodeID int64) float64 {
 }
 
 func (e LightningEdge) AggiornaBilancio(nodeID int64, pagamento float64) {
-	e.Balance.Mutex.RLock()
-	defer e.Balance.Mutex.RUnlock()
-
 	if nodeID == e.F.ID() {
 		e.Balance.BalanceA -= pagamento
 		e.Balance.BalanceB += pagamento

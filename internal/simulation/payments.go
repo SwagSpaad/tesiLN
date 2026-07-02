@@ -1,11 +1,12 @@
 package simulation
 
 import (
+	"encoding/csv"
 	"fmt"
 	"lightning-network/internal/analyzer"
 	"math/rand"
-	"sync"
-	"sync/atomic"
+	"os"
+	"strconv"
 	"time"
 
 	"gonum.org/v1/gonum/graph/topo"
@@ -99,49 +100,38 @@ func RandomProcess(numPagamenti int, pagamento float64, lng *analyzer.LNGraph) {
 	}
 	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	type Richiesta struct{ start, dest int64 }
-	richieste := make([]Richiesta, numPagamenti)
+	pagamentiRiusciti := 0
+	pagamentiFalliti := 0
+	fallimentoLiquidita := 0
+	fallimentoPath := 0
+	totaleHops := 0
+
 	for i := 0; i < numPagamenti; i++ {
 		startNodeIndex := rand.Intn(numNodi)
 		destNodeIndex := rand.Intn(numNodi)
 		for startNodeIndex == destNodeIndex {
 			destNodeIndex = rand.Intn(numNodi)
 		}
-		richieste[i] = Richiesta{start: IDArray[startNodeIndex], dest: IDArray[destNodeIndex]}
-	}
+		nodoSorg := IDArray[startNodeIndex]
+		nodoDest := IDArray[destNodeIndex]
 
-	var pagamentiRiusciti uint64 = 0
-	var pagamentiFalliti uint64 = 0
-	var fallimentoLiquidita uint64 = 0
-	var fallimentoPath uint64 = 0
-	var totaleHops int64 = 0
+		esito, hops, pathExists := Paga(nodoSorg, nodoDest, pagamento, lng)
 
-	var wg sync.WaitGroup
-	fmt.Printf("Avvio simulazione parallela...\n")
-	for i := 0; i < numPagamenti; i++ {
-		wg.Add(1)
-
-		go func(req Richiesta) {
-			defer wg.Done()
-
-			esito, hops, pathExists := Paga(req.start, req.dest, pagamento, lng)
-			if esito {
-				atomic.AddUint64(&pagamentiRiusciti, 1)
-				atomic.AddInt64(&totaleHops, hops)
+		if esito {
+			pagamentiRiusciti++
+			totaleHops += int(hops)
+		} else {
+			pagamentiFalliti++
+			if pathExists {
+				fallimentoLiquidita++
 			} else {
-				atomic.AddUint64(&pagamentiFalliti, 1)
-				if pathExists {
-					atomic.AddUint64(&fallimentoLiquidita, 1)
-				} else {
-					atomic.AddUint64(&fallimentoPath, 1)
-				}
+				fallimentoPath++
 			}
-		}(richieste[i])
+		}
 		if (i+1)%(numPagamenti/10) == 0 {
 			fmt.Printf("Progresso: %d di %d pagamenti simulati...\n", i+1, numPagamenti)
 		}
 	}
-	wg.Wait()
 
 	fmt.Println("\n--- RISULTATI DELLA SIMULAZIONE ---")
 	fmt.Printf("Pagamenti tentati: %d\n", numPagamenti)
@@ -153,4 +143,97 @@ func RandomProcess(numPagamenti int, pagamento float64, lng *analyzer.LNGraph) {
 	if pagamentiRiusciti > 0 {
 		fmt.Printf("Lunghezza media percorso: %.2f salti\n", float64(totaleHops)/float64(pagamentiRiusciti))
 	}
+}
+
+func EsportaCSV(lng *analyzer.LNGraph, nodiDaRimuovere []int64, totRimozioni int, numPagamenti int, valPagamento float64, nomeFile string) error {
+	file, err := os.Create(nomeFile)
+	if err != nil {
+		return fmt.Errorf("errore durante la creazione del file: %v", err)
+	}
+
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Intestazione CSV
+	header := []string{"NodiRimossi", "Fallimento per liquidità", "Fallimento per path inesistente"}
+	err = writer.Write(header)
+	if err != nil {
+		return fmt.Errorf("Errore durante la scrittura dell'intestazione: %v", err)
+	}
+
+	fmt.Printf("\n--- AVVIO EXPORT CSV (%s) ---\n", nomeFile)
+	for stato := 0; stato <= totRimozioni; stato++ {
+		analyzer.RipristinaBilanci(lng)
+		percFailLiquidità, percFailPath := calcolaFallimento(lng, numPagamenti, valPagamento)
+
+		riga := []string{
+			strconv.Itoa(stato),
+			fmt.Sprintf("%.2f", percFailLiquidità),
+			fmt.Sprintf("%.2f", percFailPath),
+		}
+
+		writer.Write(riga)
+		fmt.Printf("Step %d di %d. Nodi rimossi: %d | Perc fail liquidita %.2f%% | Perc fail path %.2f%%\n", stato, totRimozioni, stato, percFailLiquidità, percFailPath)
+
+		if stato < totRimozioni && stato < len(nodiDaRimuovere) {
+			nodoDaRimuovere := nodiDaRimuovere[stato]
+			lng.Graph.RemoveNode(nodoDaRimuovere)
+		}
+	}
+
+	return err
+}
+
+func calcolaFallimento(lng *analyzer.LNGraph, numPagamenti int, valPagamento float64) (float64, float64) {
+	nodi := lng.Graph.Nodes()
+	IDArray := []int64{}
+
+	for nodi.Next() {
+		IDArray = append(IDArray, nodi.Node().ID())
+	}
+
+	numNodi := len(IDArray)
+	if numNodi < 2 {
+		return 0, 100.00
+	}
+	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	connComp := topo.ConnectedComponents(lng.Graph)
+	mappaComp := make(map[int64]int)
+
+	for idComp, comp := range connComp {
+		for _, nodo := range comp {
+			mappaComp[nodo.ID()] = idComp
+		}
+	}
+	fallimentoLiquidita := 0
+	fallimentoPath := 0
+
+	for i := 0; i < numPagamenti; i++ {
+		startNodeIndex := rand.Intn(numNodi)
+		destNodeIndex := rand.Intn(numNodi)
+		for startNodeIndex == destNodeIndex {
+			destNodeIndex = rand.Intn(numNodi)
+		}
+		nodoSorg := IDArray[startNodeIndex]
+		nodoDest := IDArray[destNodeIndex]
+
+		if mappaComp[nodoSorg] != mappaComp[nodoDest] {
+			fallimentoPath++
+			continue
+		}
+
+		esito, _, _ := Paga(nodoSorg, nodoDest, valPagamento, lng)
+
+		if !esito {
+			fallimentoLiquidita++
+		}
+	}
+
+	percFailLiquidità := float64(fallimentoLiquidita) / float64(numPagamenti) * 100
+	percFailPath := float64(fallimentoPath) / float64(numPagamenti) * 100
+
+	return percFailLiquidità, percFailPath
 }
