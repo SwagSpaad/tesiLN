@@ -23,7 +23,7 @@ def load_data(filename):
     df = pd.read_csv(filename)
     return {
         'x': df.iloc[:, 0],
-        'liqFail': df.iloc[:, 1],
+        'liqFail': df.iloc[:, 4], # 4 per il nuovo calcolo liquidità
         'pathFail': df.iloc[:, 2],
         'avgHops': df.iloc[:, 3]
     }
