@@ -1,8 +1,11 @@
 package analyzer
 
 import (
+	"encoding/csv"
 	"fmt"
 	"os"
+	"sort"
+	"strconv"
 
 	"gonum.org/v1/gonum/graph"
 	"gonum.org/v1/gonum/graph/network"
@@ -10,6 +13,11 @@ import (
 	"gonum.org/v1/gonum/graph/simple"
 	"gonum.org/v1/gonum/graph/topo"
 )
+
+type NodoGrado struct {
+	ID     int64
+	Degree int
+}
 
 func AvgDegree(lng *LNGraph) float64 {
 	archi := lng.Graph.Edges().Len()
@@ -108,4 +116,52 @@ func (lng *LNGraph) CalcoloDiametro(componente []graph.Node) float64 {
 		//TODO: inserire 2sweepBFS per componenti grandi e utilizzare calcolo preciso per componenti piccole (<500 nodi)
 	}
 	return diametro
+}
+
+func EsportaGradoCSV(lng *LNGraph, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("Errore creazione file: %v\n", err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	var listaNodi []NodoGrado
+	nodes := lng.Graph.Nodes()
+	for nodes.Next() {
+		node := nodes.Node()
+		id := node.ID()
+
+		degree := lng.Graph.From(id).Len()
+
+		listaNodi = append(listaNodi, NodoGrado{
+			ID:     id,
+			Degree: degree,
+		})
+	}
+
+	// 2. Ordiniamo la slice in ordine CRESCENTE rispetto al grado
+	sort.Slice(listaNodi, func(i, j int) bool {
+		return listaNodi[i].Degree < listaNodi[j].Degree
+	})
+
+	header := []string{"Alias", "Grado"}
+	if err := writer.Write(header); err != nil {
+		return fmt.Errorf("Errore scrittura intestazione: %v\n", err)
+	}
+
+	for _, nodo := range listaNodi {
+		row := []string{
+			strconv.Itoa(int(nodo.ID)),
+			strconv.Itoa(nodo.Degree),
+		}
+
+		if err := writer.Write(row); err != nil {
+			return fmt.Errorf("Errore scrittura riga: %v\n", err)
+		}
+	}
+	fmt.Printf("Csv generato correttamente in %v\n", filename)
+	return nil
 }

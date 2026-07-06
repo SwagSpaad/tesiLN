@@ -157,7 +157,7 @@ func EsportaCSV(lng *analyzer.LNGraph, nodiDaRimuovere []int64, totRimozioni int
 	defer writer.Flush()
 
 	// Intestazione CSV
-	header := []string{"NodiRimossi", "Fallimento per liquidità", "Fallimento per path inesistente"}
+	header := []string{"NodiRimossi", "Fallimento per liquidità", "Fallimento per path inesistente", "Media hop"}
 	err = writer.Write(header)
 	if err != nil {
 		return fmt.Errorf("Errore durante la scrittura dell'intestazione: %v", err)
@@ -166,16 +166,17 @@ func EsportaCSV(lng *analyzer.LNGraph, nodiDaRimuovere []int64, totRimozioni int
 	fmt.Printf("\n--- AVVIO EXPORT CSV (%s) ---\n", nomeFile)
 	for stato := 0; stato <= totRimozioni; stato++ {
 		analyzer.RipristinaBilanci(lng)
-		percFailLiquidità, percFailPath := calcolaFallimento(lng, numPagamenti, valPagamento)
+		percFailLiquidità, percFailPath, avgHops := calcolaFallimento(lng, numPagamenti, valPagamento)
 
 		riga := []string{
 			strconv.Itoa(stato),
-			fmt.Sprintf("%.2f", percFailLiquidità),
-			fmt.Sprintf("%.2f", percFailPath),
+			fmt.Sprintf("%.4f", percFailLiquidità),
+			fmt.Sprintf("%.4f", percFailPath),
+			fmt.Sprintf("%.4f", avgHops),
 		}
 
 		writer.Write(riga)
-		fmt.Printf("Step %d di %d. Nodi rimossi: %d | Perc fail liquidita %.2f%% | Perc fail path %.2f%%\n", stato, totRimozioni, stato, percFailLiquidità, percFailPath)
+		fmt.Printf("[%s]: Step %d di %d. Nodi rimossi: %d | Perc fail liquidita %.4f%% | Perc fail path %.4f%% | Media hop %.4f\n", nomeFile, stato, totRimozioni, stato, percFailLiquidità, percFailPath, avgHops)
 
 		if stato < totRimozioni && stato < len(nodiDaRimuovere) {
 			nodoDaRimuovere := nodiDaRimuovere[stato]
@@ -186,7 +187,7 @@ func EsportaCSV(lng *analyzer.LNGraph, nodiDaRimuovere []int64, totRimozioni int
 	return err
 }
 
-func calcolaFallimento(lng *analyzer.LNGraph, numPagamenti int, valPagamento float64) (float64, float64) {
+func calcolaFallimento(lng *analyzer.LNGraph, numPagamenti int, valPagamento float64) (float64, float64, float64) {
 	nodi := lng.Graph.Nodes()
 	IDArray := []int64{}
 
@@ -196,7 +197,7 @@ func calcolaFallimento(lng *analyzer.LNGraph, numPagamenti int, valPagamento flo
 
 	numNodi := len(IDArray)
 	if numNodi < 2 {
-		return 0, 100.00
+		return 0, 100.00, 0
 	}
 	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -210,6 +211,8 @@ func calcolaFallimento(lng *analyzer.LNGraph, numPagamenti int, valPagamento flo
 	}
 	fallimentoLiquidita := 0
 	fallimentoPath := 0
+	totaleHops := 0
+	pagamentiRiusciti := 0
 
 	for i := 0; i < numPagamenti; i++ {
 		startNodeIndex := rand.Intn(numNodi)
@@ -225,15 +228,21 @@ func calcolaFallimento(lng *analyzer.LNGraph, numPagamenti int, valPagamento flo
 			continue
 		}
 
-		esito, _, _ := Paga(nodoSorg, nodoDest, valPagamento, lng)
+		esito, hops, _ := Paga(nodoSorg, nodoDest, valPagamento, lng)
 
 		if !esito {
 			fallimentoLiquidita++
+		} else {
+			pagamentiRiusciti++
+			totaleHops += int(hops)
 		}
 	}
+	var avgHops float64
 
 	percFailLiquidità := float64(fallimentoLiquidita) / float64(numPagamenti) * 100
 	percFailPath := float64(fallimentoPath) / float64(numPagamenti) * 100
-
-	return percFailLiquidità, percFailPath
+	if pagamentiRiusciti > 0 {
+		avgHops = float64(totaleHops) / float64(pagamentiRiusciti)
+	}
+	return percFailLiquidità, percFailPath, avgHops
 }
