@@ -44,11 +44,12 @@ if all([data_LN_casuali, data_LN_mirati, data_ER_casuali, data_ER_mirati]):
     plt.plot(data_ER_casuali['x'], data_ER_casuali['pathFail'], color=colore_er, linestyle='-', label='Erdos-Renyi')
     plt.xlabel('Nodi rimossi')
     plt.ylabel('Fallimenti per assenza percorso (%)')
+    plt.ylim(0, 100)
     plt.xlim(0, 150)
     plt.grid(True, linestyle=':', alpha=0.7)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('1_GuastiCasuali_path_noGiant.pdf')
+    plt.savefig('1_Confronto_GC_path.pdf')
     print('Salvato: 1_GuastiCasuali_path.pdf')
 
     # Grafico 2 guasti casuali - fallimento liquidità
@@ -62,7 +63,7 @@ if all([data_LN_casuali, data_LN_mirati, data_ER_casuali, data_ER_mirati]):
     plt.grid(True, linestyle=':', alpha=0.7)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('2_GuastiCasuali_liq_noGiant.pdf')
+    plt.savefig('2_Confronto_GC_liq.pdf')
     print('Salvato: 2_GuastiCasuali_liq.pdf')
 
     #Grafico 3 attacchi mirati - fallimento path
@@ -77,7 +78,7 @@ if all([data_LN_casuali, data_LN_mirati, data_ER_casuali, data_ER_mirati]):
     plt.grid(True, linestyle=':', alpha=0.7)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('3_AttracchiMirati_path_noGiant.pdf')
+    plt.savefig('3_Confronto_AM_path.pdf')
     print('Salvato: 3_AttacchiMirati_path.pdf')
 
     #Grafico 4 attacchi mirati - fallimento liquidità
@@ -91,7 +92,7 @@ if all([data_LN_casuali, data_LN_mirati, data_ER_casuali, data_ER_mirati]):
     plt.grid(True, linestyle=':', alpha=0.7)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('4_AttracchiMirati_liq_noGiant.pdf')
+    plt.savefig('4_Confronto_AM_liq.pdf')
     print('Salvato: 4_AttacchiMirati_liq.pdf')
 
     #Grafico 5 analisi aumento hop medi
@@ -108,7 +109,7 @@ if all([data_LN_casuali, data_LN_mirati, data_ER_casuali, data_ER_mirati]):
     plt.grid(True, linestyle=':', alpha=0.7)
     plt.legend(loc='upper left', fontsize=10)
     plt.tight_layout()
-    plt.savefig('5_AumentoHop_noGiant.pdf')
+    plt.savefig('5_Confronto_Hop.pdf')
     print("Salvato: 5_AumentoHop.pdf")
 
 print("Grafici generati con successo")

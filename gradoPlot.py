@@ -69,8 +69,8 @@ if df_ln is not None and df_er is not None:
     degrees_er, probs_er = get_probability_distribution(df_er)
 
     # Disegniamo i punti in scala Log-Log
-    plt.loglog(degrees_ln, probs_ln, marker='o', linestyle='none', color=color_ln, alpha=0.7, label='Lightning Network (Power-Law)')
-    plt.loglog(degrees_er, probs_er, marker='s', linestyle='none', color=color_er, alpha=0.7, label='Erdős-Rényi (Poisson)')
+    plt.loglog(degrees_ln, probs_ln, marker='o', linestyle='none', color=color_ln, alpha=0.7, label='Lightning Network')
+    #plt.loglog(degrees_er, probs_er, marker='s', linestyle='none', color=color_er, alpha=0.7, label='Erdős-Rényi (Poisson)')
 
     plt.xlabel('Grado $k$')
     plt.ylabel('Probabilità $P(k)$')
@@ -87,7 +87,7 @@ if df_ln is not None and df_er is not None:
     plt.figure()
 
     # Disegniamo i punti in scala lineare, uniti da linee per far risaltare la curva
-    plt.plot(degrees_er, probs_er, marker='s', linestyle='-', color=color_er, linewidth=2, alpha=0.9, label='Erdős-Rényi (Campana di Poisson)')
+    #plt.plot(degrees_er, probs_er, marker='s', linestyle='-', color=color_er, linewidth=2, alpha=0.9, label='Erdős-Rényi (Campana di Poisson)')
     plt.plot(degrees_ln, probs_ln, marker='o', linestyle='-', color=color_ln, linewidth=2, alpha=0.8, label='Lightning Network')
 
     plt.xlabel('Grado del Nodo $k$')
